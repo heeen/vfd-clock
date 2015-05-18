@@ -29,14 +29,8 @@ user_procTask(os_event_t *events) {
 //Init function 
 void ICACHE_FLASH_ATTR
 user_init() {
-    // Initialize the GPIO subsystem.
- //   gpio_init();
-    
-    uart_init(115200, 9600); 
+    uart_init(115200, 9600);
     // tx, gpio2
-
-//    uart_div_modify(1, UART_CLK_FREQ / 9600);
-//    uart_div_modify(0, UART_CLK_FREQ / 9600);
 
     os_timer_disarm(&some_timer);
     os_timer_setfn(&some_timer, (os_timer_func_t *)some_timerfunc, NULL);
