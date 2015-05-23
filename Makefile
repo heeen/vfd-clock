@@ -32,9 +32,11 @@ TARGET		= app
 
 # which modules (subdirectories) of the project to include in compiling
 MODULES		= driver user
-EXTRA_INCDIR    = include
+EXTRA_INCDIR    = include include/lwip ../esp-lwip/config ../esp-lwip/espressif/include ../esp-lwip/src/include/ipv4
+EXTRA_LIBDIR = ../esp-lwip
 
 # libraries used in this project, mainly provided by the SDK
+#LIBS		= c gcc hal pp phy net80211 lwip.1.4.1 wpa main
 LIBS		= c gcc hal pp phy net80211 lwip wpa main
 
 # compiler flags using during compilation of source files
@@ -58,6 +60,7 @@ FW_FILE_2_ADDR	= 0x40000
 
 # select which tools to use as compiler, librarian and linker
 CC		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
+CXX		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-g++
 AR		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-ar
 LD		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
 
@@ -72,8 +75,10 @@ BUILD_DIR	:= $(addprefix $(BUILD_BASE)/,$(MODULES))
 SDK_LIBDIR	:= $(addprefix $(SDK_BASE)/,$(SDK_LIBDIR))
 SDK_INCDIR	:= $(addprefix -I$(SDK_BASE)/,$(SDK_INCDIR))
 
-SRC		:= $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.c))
+SRC		:= $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.c) $(wildcard $(sdir)/*.cpp))
 OBJ		:= $(patsubst %.c,$(BUILD_BASE)/%.o,$(SRC))
+OBJ		:= $(patsubst %.cpp,$(BUILD_BASE)/%.o,$(OBJ))
+
 LIBS		:= $(addprefix -l,$(LIBS))
 APP_AR		:= $(addprefix $(BUILD_BASE)/,$(TARGET)_app.a)
 TARGET_OUT	:= $(addprefix $(BUILD_BASE)/,$(TARGET).out)
@@ -97,11 +102,16 @@ vecho := @echo
 endif
 
 vpath %.c $(SRC_DIR)
+vpath %.cpp $(SRC_DIR)
 
 define compile-objects
 $1/%.o: %.c
 	$(vecho) "CC $$<"
 	$(Q) $(CC) $(INCDIR) $(MODULE_INCDIR) $(EXTRA_INCDIR) $(SDK_INCDIR) $(CFLAGS) -c $$< -o $$@
+
+$1/%.o: %.cpp
+	$(vecho) "CXX $$<"
+	$(Q) $(CXX) $(INCDIR) $(MODULE_INCDIR) $(EXTRA_INCDIR) $(SDK_INCDIR) $(CFLAGS) -c $$< -o $$@
 endef
 
 .PHONY: all checkdirs flash clean
@@ -114,7 +124,7 @@ $(FW_BASE)/%.bin: $(TARGET_OUT) | $(FW_BASE)
 
 $(TARGET_OUT): $(APP_AR)
 	$(vecho) "LD $@"
-	$(Q) $(LD) -L$(SDK_LIBDIR) $(LD_SCRIPT) $(LDFLAGS) -Wl,--start-group $(LIBS) $(APP_AR) -Wl,--end-group -o $@
+	$(Q) $(LD) -L$(EXTRA_LIBDIR) -L$(SDK_LIBDIR) $(LD_SCRIPT) $(LDFLAGS) -Wl,--start-group $(LIBS) $(APP_AR) -Wl,--end-group -o $@
 
 $(APP_AR): $(OBJ)
 	$(vecho) "AR $@"
