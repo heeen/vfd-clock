@@ -124,7 +124,7 @@ checkmDns() {
     s_mdns_info->ipAddr = s_ip.ip.addr;
     s_mdns_info->server_name = "iot";
     s_mdns_info->server_port = 8080;
-    s_mdns_info->txt_data = "version = now";
+    s_mdns_info->txt_data[0] = "foo = bar";
     espconn_mdns_init(s_mdns_info);
     //espconn_mdns_server_register();
     espconn_mdns_enable();

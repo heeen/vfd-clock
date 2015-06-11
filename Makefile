@@ -18,8 +18,7 @@ BUILD_BASE	= build
 FW_BASE		= firmware
 
 # base directory for the compiler
-XTENSA_TOOLS_ROOT ?= ../esp-open-sdk/crosstool-NG/builds/xtensa-lx106-elf/bin
-
+XTENSA_TOOLS_ROOT ?= ../esp-open-sdk/xtensa-lx106-elf/bin
 # base directory of the ESP8266 SDK package, absolute
 SDK_BASE	?= ../esp-open-sdk/sdk
 
@@ -120,7 +119,7 @@ all: checkdirs $(TARGET_OUT) $(FW_FILE_1) $(FW_FILE_2)
 
 $(FW_BASE)/%.bin: $(TARGET_OUT) | $(FW_BASE)
 	$(vecho) "FW $(FW_BASE)/"
-	$(Q) $(ESPTOOL) elf2image -o $(FW_BASE)/ $(TARGET_OUT)
+	$(Q) PATH=$(PATH):$(XTENSA_TOOLS_ROOT) $(ESPTOOL) elf2image -o $(FW_BASE)/ $(TARGET_OUT)
 
 $(TARGET_OUT): $(APP_AR)
 	$(vecho) "LD $@"
