@@ -76,7 +76,6 @@ check_ap_joined(void *arg)
   uint8_t status;
   static uint8_t prev_status = STATION_IDLE;
 
-
   checkTime++;
   status = wifi_station_get_connect_status();
   if(prev_status != status) {
@@ -145,6 +144,10 @@ displayTime() {
       ntp_get_time();
       vfd_pos(19, 0);
       vfd_print("?");
+    } else {
+      vfd_bars_char(128, wifi_station_get_rssi());
+      vfd_pos(19, 0);
+      uart_tx_one_char(UART1, 128);
     }
 
     wifi_get_ip_info(0x00, &s_ip);

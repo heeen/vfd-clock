@@ -55,6 +55,111 @@ void vfd_overwrite_mode() {
    uart_tx_one_char(UART1, '\x11');
 }
 
+void vfd_custom_char(uint8_t code,
+        uint8_t row1,
+        uint8_t row2,
+        uint8_t row3,
+        uint8_t row4,
+        uint8_t row5,
+        uint8_t row6,
+        uint8_t row7) {
+   uart_tx_one_char(UART1, '\x1a');
+   uart_tx_one_char(UART1, code);
+   uart_tx_one_char(UART1, row1);
+   uart_tx_one_char(UART1, row2);
+   uart_tx_one_char(UART1, row3);
+   uart_tx_one_char(UART1, row4);
+   uart_tx_one_char(UART1, row5);
+   uart_tx_one_char(UART1, row6);
+   uart_tx_one_char(UART1, row7);
+}
+
+/*
+ *
+ *  below -87 zero (still connected, but barely)
+    -87 to -82 1
+    -82 to -77 2
+    -77 to -72 3
+    -72 to -67 4
+    above -67 5
+ * */
+
+void vfd_bars_char(uint8_t code, int dbm) {
+    if(dbm < -106) {
+        vfd_custom_char(code,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b10000);
+    } else if(dbm < -100) {
+        vfd_custom_char(code,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b11100);
+    } else if (dbm < -87) {
+        vfd_custom_char(code,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b11111);
+    } else if (dbm < -82) {
+        vfd_custom_char(code,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00001,
+                0b00000,
+                0b11111);
+    } else if (dbm < -77) {
+        vfd_custom_char(code,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00010,
+                0b00011,
+                0b00000,
+                0b11111);
+    } else if (dbm < -72) {
+        vfd_custom_char(code,
+                0b00000,
+                0b00000,
+                0b00100,
+                0b00110,
+                0b00111,
+                0b00000,
+                0b11111);
+    } else if (dbm < -67) {
+        vfd_custom_char(code,
+                0b00000,
+                0b01000,
+                0b01100,
+                0b01110,
+                0b01111,
+                0b00000,
+                0b11111);
+    } else {
+        vfd_custom_char(code,
+                0b10000,
+                0b11000,
+                0b11100,
+                0b11110,
+                0b11111,
+                0b00000,
+                0b11111);
+    }
+}
+
 void vfd_print(const char* str) {
     while(*str){
         uart_tx_one_char(UART1, *str);
