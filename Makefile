@@ -16,14 +16,17 @@
 # relative to the project directory
 BUILD_BASE	= build
 FW_BASE		= firmware
+OTA_BASE	?= ota
 
 # base directory for the compiler
 XTENSA_TOOLS_ROOT ?= ../esp-open-sdk/xtensa-lx106-elf/bin
+XTENSA_BINDIR = $(addprefix $(PWD), $(XTENSA_TOOLS_ROOT))
+
 # base directory of the ESP8266 SDK package, absolute
 SDK_BASE	?= ../esp-open-sdk/sdk
 
 # esptool.py path and port
-ESPTOOL		?= ../esp-open-sdk/esptool/esptool.py
+ESPTOOL		?= ./esptool.py
 ESPPORT		?= /dev/ttyUSB0
 
 # name for the target project
@@ -79,7 +82,7 @@ OBJ		:= $(patsubst %.c,$(BUILD_BASE)/%.o,$(SRC))
 OBJ		:= $(patsubst %.cpp,$(BUILD_BASE)/%.o,$(OBJ))
 
 LIBS		:= $(addprefix -l,$(LIBS))
-APP_AR		:= $(addprefix $(BUILD_BASE)/,$(TARGET)_app.a)
+APP_AR		:= $(addprefix $(BUILD_BASE)/,$(TARGET).a)
 TARGET_OUT	:= $(addprefix $(BUILD_BASE)/,$(TARGET).out)
 
 LD_SCRIPT	:= $(addprefix -T$(SDK_BASE)/$(SDK_LDDIR)/,$(LD_SCRIPT))
@@ -119,13 +122,13 @@ all: checkdirs $(TARGET_OUT) $(FW_FILE_1) $(FW_FILE_2)
 
 $(FW_BASE)/%.bin: $(TARGET_OUT) | $(FW_BASE)
 	$(vecho) "FW $(FW_BASE)/"
-	$(Q) PATH=$(PATH):$(XTENSA_TOOLS_ROOT) $(ESPTOOL) elf2image -o $(FW_BASE)/ $(TARGET_OUT)
+	$(Q) PATH=$(PATH):$(XTENSA_TOOLS_ROOT) $(ESPTOOL) elf2image -o $(FW_BASE)/ $<
 
-$(TARGET_OUT): $(APP_AR)
+%.out: %.a
 	$(vecho) "LD $@"
-	$(Q) $(LD) -L$(EXTRA_LIBDIR) -L$(SDK_LIBDIR) $(LD_SCRIPT) $(LDFLAGS) -Wl,--start-group $(LIBS) $(APP_AR) -Wl,--end-group -o $@
+	$(Q) $(LD) -L$(EXTRA_LIBDIR) -L$(SDK_LIBDIR) $(LD_SCRIPT) $(LDFLAGS) -Wl,--start-group $(LIBS) $< -Wl,--end-group -o $@
 
-$(APP_AR): $(OBJ)
+%.a: $(OBJ)
 	$(vecho) "AR $@"
 	$(Q) $(AR) cru $@ $^
 
@@ -144,3 +147,22 @@ clean:
 	$(Q) rm -rf $(FW_BASE) $(BUILD_BASE)
 
 $(foreach bdir,$(BUILD_DIR),$(eval $(call compile-objects,$(bdir))))
+
+
+$(OTA_BASE):
+	$(Q) mkdir -p $@
+
+$(OTA_BASE)/%.out: $(APP_AR) | $(OTA_DIR) APP_SLOT=%
+	$(vecho) "LD $@"
+	$(Q) $(LD) -L$(EXTRA_LIBDIR) -L$(SDK_LIBDIR) eagle.app.v6.new.512.$(APP_SLOT).ld $(LDFLAGS) -Wl,--start-group $(LIBS) $< -Wl,--end-group -o $@
+
+$(OTA_BASE)/%.bin: $(OTA_BASE)/%.out
+	$(Q) PATH=$(PATH):$(XTENSA_TOOLS_ROOT) $(ESPTOOL) elf2ota -o $@ $<
+
+esptool2: raburton-esp8266/esptool2/esptool2
+
+raburton-esp8266/esptool2/esptool2:
+	make -C raburton-esp8266/esptool2
+
+rboot: esptool2
+	cd raburton-esp8266/rboot && make  ESPTOOL2=../esptool2/esptool2
