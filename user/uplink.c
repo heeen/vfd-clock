@@ -23,7 +23,10 @@ static void uplink_sentCb(void *arg);
 const char* esp_errstr(sint8 err);
 static os_timer_t recon_timer;
 
+void uplink_init();
+
 void uplink_start() {
+    print("connecting to the mothership\n");
   uplink_init();
   espconn_connect(&uplink_conn);
 }

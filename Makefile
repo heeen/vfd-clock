@@ -14,6 +14,7 @@ XTENSA_BINDIR ?= $(addprefix $(PWD)/,"../esp-open-sdk/xtensa-lx106-elf/bin")
 
 ESPTOOL ?= ./esptool.py
 ESPPORT ?= /dev/ttyUSB1
+ESPBAUD ?= 115200
 
 CC := $(addprefix $(XTENSA_BINDIR)/,xtensa-lx106-elf-gcc)
 LD := $(addprefix $(XTENSA_BINDIR)/,xtensa-lx106-elf-gcc)
@@ -73,4 +74,4 @@ rboot: $(RBOOT)
 esptool2: $(ESPTOOL2)
 
 flash: $(RBOOT) $(FIRMW_DIR)/rom0.bin $(FIRMW_DIR)/rom1.bin
-	$(ESPTOOL) --port $(ESPPORT) write_flash 0x00000 $(RBOOT) 0x02000 $(FIRMW_DIR)/rom0.bin 0x82000 $(FIRMW_DIR)/rom1.bin
+	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPBAUD) write_flash 0x00000 $(RBOOT) 0x02000 $(FIRMW_DIR)/rom0.bin 0x82000 $(FIRMW_DIR)/rom1.bin

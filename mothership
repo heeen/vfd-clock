@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+
+use IO::Socket::INET;
+use Image::Magick;
+# auto-flush on socket
+$| = 1;
+ 
+# creating a listening socket
+my $socket = new IO::Socket::INET (
+    LocalHost => '192.168.0.99',
+    LocalPort => '8080',
+    Proto => 'tcp',
+    Listen => 5,
+    Reuse => 1
+);
+die "cannot create socket $!\n" unless $socket;
+print "server waiting for client connection on ".$socket->sockaddr(). " port ".$socket->sockport()."\n";
+
+my %known = (
+    "18:fe:34:9c:8d:d0"=>"vfdclock-1"
+);
+
+while(1)
+{
+    # waiting for a new client connection
+    my $client_socket = $socket->accept();
+ 
+    # get information about a newly connected client
+    my $client_address = $client_socket->peerhost();
+    my $client_port = $client_socket->peerport();
+    my $data;
+    my $ip;
+    my @devices;
+    while (<$client_socket>) {
+        print $_;
+    }
+    print "### connection lost: \n";
+    shutdown($client_socket, 1);
+}
+ 
+$socket->close();
+

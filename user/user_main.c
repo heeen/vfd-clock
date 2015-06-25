@@ -13,6 +13,7 @@
 #include "wifimgr.h"
 
 #include "vfd.h"
+#include "uplink.h"
 
 #define user_procTaskPrio        0
 #define user_procTaskQueueLen    1
@@ -102,6 +103,7 @@ check_ap_joined(void *arg)
           //checkmDns();
           vfd_clear();
           ntp_get_time();
+          uplink_start();
 
 /*          os_timer_disarm(&display_time_timer);
           os_timer_setfn(&display_time_timer, (os_timer_func_t *)displayTime, NULL);
