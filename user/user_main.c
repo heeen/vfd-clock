@@ -140,7 +140,6 @@ displayTime() {
     vfd_print(timestr);
 
     if(timestamp - last_ntp_update > 30*60) {
-      print("ntp update.");
       ntp_get_time();
       vfd_pos(19, 0);
       vfd_print("?");

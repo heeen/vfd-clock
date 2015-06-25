@@ -1,168 +1,76 @@
-# Makefile for ESP8266 projects
-#
-# Thanks to:
-# - zarya
-# - Jeroen Domburg (Sprite_tm)
-# - Christian Klippel (mamalala)
-# - Tommie Gannert (tommie)
-#
-# Changelog:
-# - 2014-10-06: Changed the variables to include the header file directory
-# - 2014-10-06: Added global var for the Xtensa tool root
-# - 2014-11-23: Updated for SDK 0.9.3
-# - 2014-12-25: Replaced esptool by esptool.py
+SDK_BASE   ?= ../esp-open-sdk/sdk
+SDK_LIBDIR  = lib
+SDK_INCDIR  = include
 
-# Output directors to store intermediate compiled files
-# relative to the project directory
-BUILD_BASE	= build
-FW_BASE		= firmware
-OTA_BASE	?= ota
+RBOOTBASE    ?= raburton-esp8266
+ESPTOOL2     ?= $(RBOOTBASE)/esptool2/esptool2
+RBOOT        ?= $(RBOOTBASE)/rboot/firmware/rboot.bin
+RBOOT_INCDIR ?= $(RBOOTBASE)/rboot
 
-# base directory for the compiler
-XTENSA_TOOLS_ROOT ?= ../esp-open-sdk/xtensa-lx106-elf/bin
-XTENSA_BINDIR = $(addprefix $(PWD), $(XTENSA_TOOLS_ROOT))
+FW_SECTS      = .text .data .rodata
+FW_USER_ARGS  = -quiet -bin -boot2
 
-# base directory of the ESP8266 SDK package, absolute
-SDK_BASE	?= ../esp-open-sdk/sdk
+XTENSA_BINDIR ?= $(addprefix $(PWD)/,"../esp-open-sdk/xtensa-lx106-elf/bin")
 
-# esptool.py path and port
-ESPTOOL		?= ./esptool.py
-ESPPORT		?= /dev/ttyUSB0
+ESPTOOL ?= ./esptool.py
+ESPPORT ?= /dev/ttyUSB1
 
-# name for the target project
-TARGET		= app
+CC := $(addprefix $(XTENSA_BINDIR)/,xtensa-lx106-elf-gcc)
+LD := $(addprefix $(XTENSA_BINDIR)/,xtensa-lx106-elf-gcc)
 
-# which modules (subdirectories) of the project to include in compiling
-MODULES		= driver user
-EXTRA_INCDIR    = include include/lwip ../esp-lwip/config ../esp-lwip/espressif/include ../esp-lwip/src/include/ipv4
-EXTRA_LIBDIR = ../esp-lwip
+BUILD_DIR = build
+FIRMW_DIR = firmware
+SRC_DIR   = user
 
-# libraries used in this project, mainly provided by the SDK
-#LIBS		= c gcc hal pp phy net80211 lwip.1.4.1 wpa main
-LIBS		= c gcc hal pp phy net80211 lwip wpa main
+SDK_LIBDIR := $(addprefix $(SDK_BASE)/,$(SDK_LIBDIR))
+SDK_INCDIR := $(addprefix -I$(SDK_BASE)/,$(SDK_INCDIR))
 
-# compiler flags using during compilation of source files
-CFLAGS		= -Os -g -O2 -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH
-
-# linker flags used to generate the main object file
-LDFLAGS		= -nostdlib -Wl,--no-check-sections -u call_user_start -Wl,-static
-
-# linker script used for the above linkier step
-LD_SCRIPT	= eagle.app.v6.ld
-
-# various paths from the SDK used in this project
-SDK_LIBDIR	= lib
-SDK_LDDIR	= ld
-SDK_INCDIR	= include include/json
-
-# we create two different files for uploading into the flash
-# these are the names and options to generate them
-FW_FILE_1_ADDR	= 0x00000
-FW_FILE_2_ADDR	= 0x40000
-
-# select which tools to use as compiler, librarian and linker
-CC		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
-CXX		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-g++
-AR		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-ar
-LD		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
-
-
-
-####
-#### no user configurable options below here
-####
-SRC_DIR		:= $(MODULES)
-BUILD_DIR	:= $(addprefix $(BUILD_BASE)/,$(MODULES))
-
-SDK_LIBDIR	:= $(addprefix $(SDK_BASE)/,$(SDK_LIBDIR))
-SDK_INCDIR	:= $(addprefix -I$(SDK_BASE)/,$(SDK_INCDIR))
-
-SRC		:= $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.c) $(wildcard $(sdir)/*.cpp))
-OBJ		:= $(patsubst %.c,$(BUILD_BASE)/%.o,$(SRC))
-OBJ		:= $(patsubst %.cpp,$(BUILD_BASE)/%.o,$(OBJ))
+LIBS    = c gcc hal phy net80211 lwip wpa main pp
+CFLAGS  = -Os -g -O2 -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH
+LDFLAGS = -nostdlib -Wl,--no-check-sections -u call_user_start -Wl,-static
 
 LIBS		:= $(addprefix -l,$(LIBS))
-APP_AR		:= $(addprefix $(BUILD_BASE)/,$(TARGET).a)
-TARGET_OUT	:= $(addprefix $(BUILD_BASE)/,$(TARGET).out)
 
-LD_SCRIPT	:= $(addprefix -T$(SDK_BASE)/$(SDK_LDDIR)/,$(LD_SCRIPT))
+.SECONDARY:
+.PHONY: all clean
 
-INCDIR	:= $(addprefix -I,$(SRC_DIR))
-EXTRA_INCDIR	:= $(addprefix -I,$(EXTRA_INCDIR))
-MODULE_INCDIR	:= $(addsuffix /include,$(INCDIR))
+C_FILES = $(wildcard $(SRC_DIR)/*.c)
+O_FILES = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(C_FILES))
 
-FW_FILE_1	:= $(addprefix $(FW_BASE)/,$(FW_FILE_1_ADDR).bin)
-FW_FILE_2	:= $(addprefix $(FW_BASE)/,$(FW_FILE_2_ADDR).bin)
+all: $(BUILD_DIR) $(FIRMW_DIR) $(FIRMW_DIR)/rom0.bin $(FIRMW_DIR)/rom1.bin rboot esptool2
 
-V ?= $(VERBOSE)
-ifeq ("$(V)","1")
-Q :=
-vecho := @true
-else
-Q := @
-vecho := @echo
-endif
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	@echo "CC $<"
+	@$(CC) -I$(SRC_DIR) $(SDK_INCDIR) -I$(RBOOT_INCDIR) $(CFLAGS) -o $@ -c $<
 
-vpath %.c $(SRC_DIR)
-vpath %.cpp $(SRC_DIR)
+$(BUILD_DIR)/%.elf: $(O_FILES)
+	@echo "LD $(notdir $@)"
+	@$(LD) -L$(SDK_LIBDIR) -T$(notdir $(basename $@)).ld $(LDFLAGS) -Wl,--start-group $(LIBS) $^ -Wl,--end-group -o $@
 
-define compile-objects
-$1/%.o: %.c
-	$(vecho) "CC $$<"
-	$(Q) $(CC) $(INCDIR) $(MODULE_INCDIR) $(EXTRA_INCDIR) $(SDK_INCDIR) $(CFLAGS) -c $$< -o $$@
-
-$1/%.o: %.cpp
-	$(vecho) "CXX $$<"
-	$(Q) $(CXX) $(INCDIR) $(MODULE_INCDIR) $(EXTRA_INCDIR) $(SDK_INCDIR) $(CFLAGS) -c $$< -o $$@
-endef
-
-.PHONY: all checkdirs flash clean
-
-all: checkdirs $(TARGET_OUT) $(FW_FILE_1) $(FW_FILE_2)
-
-$(FW_BASE)/%.bin: $(TARGET_OUT) | $(FW_BASE)
-	$(vecho) "FW $(FW_BASE)/"
-	$(Q) PATH=$(PATH):$(XTENSA_TOOLS_ROOT) $(ESPTOOL) elf2image -o $(FW_BASE)/ $<
-
-%.out: %.a
-	$(vecho) "LD $@"
-	$(Q) $(LD) -L$(EXTRA_LIBDIR) -L$(SDK_LIBDIR) $(LD_SCRIPT) $(LDFLAGS) -Wl,--start-group $(LIBS) $< -Wl,--end-group -o $@
-
-%.a: $(OBJ)
-	$(vecho) "AR $@"
-	$(Q) $(AR) cru $@ $^
-
-checkdirs: $(BUILD_DIR) $(FW_BASE)
+$(FIRMW_DIR)/%.bin: $(BUILD_DIR)/%.elf
+	@echo "FW $(notdir $@)"
+	@$(ESPTOOL2) $(FW_USER_ARGS) $^ $@ $(FW_SECTS)
 
 $(BUILD_DIR):
-	$(Q) mkdir -p $@
+	@mkdir -p $@
 
-$(FW_BASE):
-	$(Q) mkdir -p $@
-
-flash: $(FW_FILE_1) $(FW_FILE_2)
-	$(ESPTOOL) --port $(ESPPORT) write_flash $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2)
+$(FIRMW_DIR):
+	@mkdir -p $@
 
 clean:
-	$(Q) rm -rf $(FW_BASE) $(BUILD_BASE)
+	@echo "RM $(BUILD_DIR) $(FIRMW_DIR)"
+	@rm -rf $(BUILD_DIR)
+	@rm -rf $(FIRMW_DIR)
 
-$(foreach bdir,$(BUILD_DIR),$(eval $(call compile-objects,$(bdir))))
+$(ESPTOOL2):
+	make -C $(RBOOTBASE)/esptool2
 
+$(RBOOT): $(ESPTOOL2)
+	make -C $(RBOOTBASE)/rboot
 
-$(OTA_BASE):
-	$(Q) mkdir -p $@
+rboot: $(RBOOT)
 
-$(OTA_BASE)/%.out: $(APP_AR) | $(OTA_DIR) APP_SLOT=%
-	$(vecho) "LD $@"
-	$(Q) $(LD) -L$(EXTRA_LIBDIR) -L$(SDK_LIBDIR) eagle.app.v6.new.512.$(APP_SLOT).ld $(LDFLAGS) -Wl,--start-group $(LIBS) $< -Wl,--end-group -o $@
+esptool2: $(ESPTOOL2)
 
-$(OTA_BASE)/%.bin: $(OTA_BASE)/%.out
-	$(Q) PATH=$(PATH):$(XTENSA_TOOLS_ROOT) $(ESPTOOL) elf2ota -o $@ $<
-
-esptool2: raburton-esp8266/esptool2/esptool2
-
-raburton-esp8266/esptool2/esptool2:
-	make -C raburton-esp8266/esptool2
-
-rboot: esptool2
-	cd raburton-esp8266/rboot && make  ESPTOOL2=../esptool2/esptool2
+flash: $(RBOOT) $(FIRMW_DIR)/rom0.bin $(FIRMW_DIR)/rom1.bin
+	$(ESPTOOL) --port $(ESPPORT) write_flash 0x00000 $(RBOOT) 0x02000 $(FIRMW_DIR)/rom0.bin 0x82000 $(FIRMW_DIR)/rom1.bin

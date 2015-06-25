@@ -21,18 +21,28 @@ static void uplink_reconCb(void *arg, sint8 err);
 static void uplink_recvCb(void *arg, char *data, unsigned short len);
 static void uplink_sentCb(void *arg);
 const char* esp_errstr(sint8 err);
+static os_timer_t recon_timer;
+
 void uplink_start() {
+  uplink_init();
+  espconn_connect(&uplink_conn);
 }
 
 void uplink_stop() {
+  os_timer_disarm(&recon_timer);
+}
+
+void ICACHE_FLASH_ATTR
+do_reconnect(void *arg) {
+
 }
 
 void uplink_init() {
-  uplink_conn.type=ESPCONN_TCP;
-  uplink_conn.state=ESPCONN_NONE;
-  uplink_conn.proto.tcp=&uplink_tcp_conn;
-  uplink_conn.proto.tcp->local_port=espconn_port();
-  uplink_conn.proto.tcp->remote_port=80;
+  uplink_conn.type = ESPCONN_TCP;
+  uplink_conn.state = ESPCONN_NONE;
+  uplink_conn.proto.tcp = &uplink_tcp_conn;
+  uplink_conn.proto.tcp->local_port = espconn_port();
+  uplink_conn.proto.tcp->remote_port = 8080;
 
   uint32_t ip = ipaddr_addr("192.168.0.99");
   os_memcpy(uplink_conn.proto.tcp->remote_ip, &ip, 4);
@@ -42,7 +52,11 @@ void uplink_init() {
   espconn_regist_reconcb(&uplink_conn, uplink_reconCb);
   espconn_regist_recvcb(&uplink_conn, uplink_recvCb);
   espconn_regist_sentcb(&uplink_conn, uplink_sentCb);
-  espconn_connect(&uplink_conn);
+
+  os_timer_disarm(&recon_timer);
+  os_timer_setfn(&recon_timer, (os_timer_func_t *) do_reconnect, NULL);
+
+
 }
 
 static void ICACHE_FLASH_ATTR uplink_sentCb(void *arg) {
@@ -51,10 +65,11 @@ static void ICACHE_FLASH_ATTR uplink_sentCb(void *arg) {
 
 static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned short len) {
   print("recv");
-
-  struct espconn *conn=(struct espconn *)arg;
-  int x;
+  struct espconn *conn = (struct espconn *) arg;
   uart0_tx_buffer(data,len);
+  if(strncmp(data, "OTA ", 4) == 0) {
+      print("got OTA request");
+  }
 }
 
 static void ICACHE_FLASH_ATTR uplink_connectedCb(void *arg) {
@@ -70,11 +85,16 @@ static void ICACHE_FLASH_ATTR uplink_connectedCb(void *arg) {
 }
 
 static void ICACHE_FLASH_ATTR uplink_reconCb(void *arg, sint8 err) {
-  print("rcon");
+  print(esp_errstr(err));
+  os_timer_disarm(&recon_timer);
+  os_timer_arm(&recon_timer, 1000, 0);
+
 }
 
 static void ICACHE_FLASH_ATTR uplink_disconCb(void *arg) {
   print("dcon");
+  os_timer_disarm(&recon_timer);
+  os_timer_arm(&recon_timer, 1000, 0);
 }
 
 
