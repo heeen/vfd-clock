@@ -14,6 +14,7 @@
 
 #include "vfd.h"
 #include "uplink.h"
+#include "rboot.h"
 
 #define user_procTaskPrio        0
 #define user_procTaskQueueLen    1
@@ -140,6 +141,7 @@ displayTime() {
     os_sprintf(timestr, "%02d:%02d:%02d", dt->tm_hour, dt->tm_min, dt->tm_sec);
     vfd_pos(0,0);
     vfd_print(timestr);
+  
 
     if(timestamp - last_ntp_update > 30*60) {
       ntp_get_time();
@@ -150,6 +152,11 @@ displayTime() {
       vfd_pos(19, 0);
       uart_tx_one_char(UART1, 128);
     }
+
+    int slot = rboot_get_current_rom();
+    os_sprintf(temp, "%d", slot);
+    vfd_pos(0, 1);
+    vfd_print(temp);
 
     wifi_get_ip_info(0x00, &s_ip);
     os_sprintf(temp, "%d.%d.%d.%d", IP2STR(&s_ip.ip));

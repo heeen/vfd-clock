@@ -280,8 +280,9 @@ class ESPROM:
     """ Poor Man's serial monitor """
     def serial_monitor(self):
         print("monitoring serial device:")
+        self._port.setBaudrate(115200)
         while(1):
-            print self._port.readline()
+            sys.stdout.write(self._port.readline())
 
 class ESPFirmwareImage:
     
