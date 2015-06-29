@@ -2,7 +2,7 @@ SDK_BASE   ?= ../esp-open-sdk/sdk
 SDK_LIBDIR  = lib
 SDK_INCDIR  = include
 
-RBOOTBASE    ?= raburton-esp8266
+RBOOTBASE    ?= $(PWD)/raburton-esp8266
 ESPTOOL2     ?= $(RBOOTBASE)/esptool2/esptool2
 RBOOT        ?= $(RBOOTBASE)/rboot/firmware/rboot.bin
 RBOOT_INCDIR ?= $(RBOOTBASE)/rboot
@@ -67,7 +67,7 @@ $(ESPTOOL2):
 	make -C $(RBOOTBASE)/esptool2
 
 $(RBOOT): $(ESPTOOL2)
-	make -C $(RBOOTBASE)/rboot
+	make -C $(RBOOTBASE)/rboot ESPTOOL2=$(ESPTOOL2) XTENSA_BINDIR=$(XTENSA_BINDIR)
 
 rboot: $(RBOOT)
 
