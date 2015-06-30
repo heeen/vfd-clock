@@ -1,18 +1,21 @@
 #!/usr/bin/perl
 
 use IO::Socket::INET;
-use Image::Magick;
+use IO::Select;
 # auto-flush on socket
 $| = 1;
  
 # creating a listening socket
 my $socket = new IO::Socket::INET (
-    LocalHost => '192.168.0.99',
-    LocalPort => '8080',
+    LocalHost => '10.0.0.20',
+    LocalPort => '7778',
     Proto => 'tcp',
-    Listen => 5,
+    Listen => 50,
     Reuse => 1
 );
+
+my $sel = new IO::Select($socket);
+#$sel->add( \*STDIN );
 die "cannot create socket $!\n" unless $socket;
 print "server waiting for client connection on ".$socket->sockaddr(). " port ".$socket->sockport()."\n";
 
@@ -20,23 +23,56 @@ my %known = (
     "18:fe:34:9c:8d:d0"=>"vfdclock-1"
 );
 
-while(1)
-{
-    # waiting for a new client connection
-    my $client_socket = $socket->accept();
- 
-    # get information about a newly connected client
-    my $client_address = $client_socket->peerhost();
-    my $client_port = $client_socket->peerport();
-    my $data;
-    my $ip;
-    my @devices;
-    while (<$client_socket>) {
-        print $_;
-    }
-    print "### connection lost: \n";
-    shutdown($client_socket, 1);
-}
- 
-$socket->close();
+my %clients;
 
+while(1) {
+  print scalar localtime,"\n";
+if(@ready = $sel->can_read(1.0)) {
+  foreach my $fh (@ready) {
+    if ($fh == $socket) {
+      print "new connection\n";
+      $new_sock = $socket->accept();
+      $sel->add($new_sock);
+      $clients{$new_sock}={};
+    } elsif ($fh == \*STDIN) {
+        print "got stdin:\n";
+        print "< $_ >" foreach <$fh>;
+    } else {
+      read_socket($fh);
+    }
+  }
+}
+}
+
+sub read_socket() {
+    print "read_socket...\n";
+    my $fh = shift;
+    my $c = $clients{$fh};
+    $buf = <$fh>;
+    if ($buf) {
+      if($buf =~ /MAC (.+)$/) {
+        print "registering connection for <$1> aka $known{$1}\n";
+        $c->{MAC} = $1;
+        $c->{id} = $known{$1};
+      }
+      print "$c->{id}: $buf\n";
+    
+      while($buf = <$fh>) {
+          print "$c->{id}:: $buf\n";
+      }
+
+        #my @sockets = $readable_handles->can_write();
+        #print $sock "You sent $buf\n"; 
+#        foreach my $sck(@sockets){
+#            print $sck "$buf\n";
+#        }
+    } else {
+      print $clients{$sock}->{MAC}." disconnected?\n";
+      $readable_handles->remove($sock);
+      close($sock);
+    }
+}
+
+print "Terminating Server\n";
+close $main_sock;
+getc();
