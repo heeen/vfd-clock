@@ -1,0 +1,139 @@
+#!/usr/bin/perl
+# http://poe.perl.org/?POE_Cookbook/TCP_Servers
+use warnings;
+use strict;
+use POE qw(Component::Server::TCP Wheel::ReadLine);
+use Data::Dumper;
+
+my %known = (
+    "18:fe:34:9c:8d:d0"=>"clock1"
+);
+
+POE::Session->create(
+    inline_states => {
+        _start => \&mystart,
+        got_input => \&got_input_handler,
+        output_text => sub {
+            my( $heap, $text ) = @_[HEAP,ARG0];
+            $heap->{readline_wheel}->put($text);
+        },
+        _stop     => \&mystop, });
+
+POE::Component::Server::TCP->new(
+  Alias              => "mothership",
+  Port               => 7778,
+  InlineStates       => {send => \&handle_send},
+  ClientConnected    => \&client_connected,
+  ClientError        => \&client_error,
+  ClientDisconnected => \&client_disconnected,
+  ClientInput        => \&client_input,
+);
+$poe_kernel->run();
+exit 0;
+
+sub mystart {
+    my ($heap) = $_[HEAP];
+    $_[KERNEL]->alias_set("console");
+    $heap->{readline_wheel} = POE::Wheel::ReadLine->new( InputEvent => 'got_input' );
+    $heap->{readline_wheel}->get(":> ");
+}
+
+sub mystop {
+    delete $_[HEAP]->{readline_wheel};
+}
+
+sub got_input_handler {
+    my ( $heap, $kernel, $input, $exception ) =
+        @_[ HEAP, KERNEL, ARG0, ARG1 ];
+
+    if ( defined $input && $input ne "") {
+        $heap->{readline_wheel}->addhistory($input);
+        if($input eq "ls") {
+            list_users();
+        }
+        else {
+            $heap->{readline_wheel}->put("sending <$input>");
+            broadcast($input);
+        }
+    }
+    elsif ( $exception eq 'interrupt' ) {
+        $heap->{readline_wheel}->put("Goodbye.");
+        delete $heap->{readline_wheel};
+# close sockets
+        exit(0);
+    }
+    else {
+        $heap->{readline_wheel}->put("\tException: $exception");
+    }
+
+    $heap->{readline_wheel}->get();
+}
+
+
+# This is a plain Perl function (not a POE event handler) that
+# broadcasts a message to all the users in the chat room.  The %users
+# hash is used to track connected people.
+my %users;
+
+sub broadcast {
+  my ($message) = @_;
+  foreach my $user (keys %users) {
+    $poe_kernel->post($user => send => $message);
+  }
+}
+
+sub list_users {
+  foreach my $session (keys %users) {
+    my $c = $users{$session};
+    print "$session: ", $c->{id},": ",$c->{MAC}, " rom: ",$c->{ROM},"\n";
+    #$poe_kernel->post($user => send => $message);
+  }
+}
+
+sub myprint {
+  $poe_kernel->post( console => output_text => join(" ", @_) );
+}
+
+# Handle an outgoing message by sending it to the client.
+sub handle_send {
+  my ($heap, $message) = @_[HEAP, ARG0];
+  print "\nsend:<$message>\n";
+  $heap->{client}->put($message);
+}
+
+# Handle a connection.  Register the new user, and broadcast a message
+# to whoever is already connected.
+sub client_connected {
+  my $session_id = $_[SESSION]->ID;
+  $users{$session_id} = {};
+  myprint($session_id, "connected.");
+}
+
+# The client disconnected.  Remove them from the chat room and
+# broadcast a message to whoever is left.
+sub client_disconnected {
+  my $session_id = $_[SESSION]->ID;
+  delete $users{$session_id};
+  myprint($session_id, "disconnected.");
+}
+
+# The client socket has had an error.  Remove them from the chat room
+# and broadcast a message to whoever is left.
+sub client_error {
+  my $session_id = $_[SESSION]->ID;
+  delete $users{$session_id};
+  myprint($session_id, "disconnected.");
+  $_[KERNEL]->yield("shutdown");
+}
+
+# Broadcast client input to everyone in the chat room.
+sub client_input {
+  my ($kernel, $session, $heap, $input) = @_[KERNEL, SESSION, HEAP, ARG0];
+  my $c = $users{$session->ID};
+  if($input =~ /^(.+)=(.+)$/) {
+      $c->{$1} = $2;
+      $c->{id} = $known{$c->{MAC}} if $1 eq "MAC";
+  }
+  $kernel->post( console => output_text => "<$c->{id}> $input" );
+}
+
