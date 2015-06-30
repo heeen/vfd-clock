@@ -13,7 +13,7 @@
 #include <osapi.h>
 
 #include "rboot-ota.h"
-
+#include "vfd.h"
 // structure to hold our internal update state
 typedef struct {
 	uint32 start_addr;
@@ -271,7 +271,13 @@ static void ICACHE_FLASH_ATTR upgrade_recvcb(void *arg, char *pusrdata, unsigned
 		// not the first chunk, process it
 		upgrade->total_len += length;
 		write_flash((uint8*)pusrdata, length);
-	    os_printf("\rOTA progress: %7d/%7d bytes. %3d%%\n", upgrade->total_len, upgrade->content_len, upgrade->total_len * 100 / upgrade->content_len);
+//	    os_printf("\rOTA progress: %7d/%7d bytes. %3d%%\n", upgrade->total_len, upgrade->content_len, upgrade->total_len * 100 / upgrade->content_len);
+        char temp[8];
+        os_sprintf(temp, "%3d%%", upgrade->total_len * 100 / upgrade->content_len);
+        vfd_pos(0, 1);
+        vfd_print(temp);
+
+
 	}
 	
 	// check if we are finished

@@ -84,15 +84,15 @@ mothership_resolved(const char *name, ip_addr_t *ipaddr, void *arg)
 }
 
 static void ICACHE_FLASH_ATTR uplink_sentCb(void *arg) {
-  print("sent");
+  print("sent\n");
 }
 
 static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned short len) {
-  print("recv");
+  print("rec\nv");
   struct espconn *conn = (struct espconn *) arg;
   uart0_tx_buffer(data,len);
   if(strncmp(data, "OTA ", 4) == 0) {
-      print("got OTA request");
+      print("got OTA request\n");
       uplink_ota();
   }
 }
@@ -100,16 +100,19 @@ static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned shor
 static void ICACHE_FLASH_ATTR uplink_connectedCb(void *arg) {
   char temp[128];
   sint8 d;
-  print("conn");
+  print("uplink connected\n");
   struct espconn *conn=(struct espconn *)arg;
   char macaddr[6];
   wifi_get_macaddr(STATION_IF, macaddr);
-  os_sprintf(temp, "MAC "MACSTR"\n",MAC2STR(macaddr));
+  os_sprintf(temp, 
+          "MAC "MACSTR"\n"
+          "ROM %d\n",
+          MAC2STR(macaddr),
+          rboot_get_current_rom());
   d = espconn_sent(conn, temp, strlen(temp));
-  os_sprintf(temp, "ROM %d\n", rboot_get_current_rom());
+  os_sprintf(temp, "HELLO!!!\n");
   d = espconn_sent(conn, temp, strlen(temp));
-
-  print("cend");
+  print("-- cend\n");
 }
 
 static void ICACHE_FLASH_ATTR uplink_reconCb(void *arg, sint8 err) {
@@ -120,7 +123,7 @@ static void ICACHE_FLASH_ATTR uplink_reconCb(void *arg, sint8 err) {
 }
 
 static void ICACHE_FLASH_ATTR uplink_disconCb(void *arg) {
-  print("dcon");
+  print("dcon\n");
   os_timer_disarm(&recon_timer);
   os_timer_arm(&recon_timer, 1000, 0);
 }
