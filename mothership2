@@ -4,10 +4,13 @@ use warnings;
 use strict;
 use POE qw(Component::Server::TCP Wheel::ReadLine);
 use Data::Dumper;
+use Linux::Inotify2;
 
 my %known = (
     "18:fe:34:9c:8d:d0"=>"clock1"
 );
+
+my $watchdir = "/var/www/heeen.de/htdocs/esp8266/";
 
 POE::Session->create(
     inline_states => {
@@ -17,7 +20,11 @@ POE::Session->create(
             my( $heap, $text ) = @_[HEAP,ARG0];
             $heap->{readline_wheel}->put($text);
         },
-        _stop     => \&mystop, });
+        inotify_poll => sub { $_[HEAP]{inotify}->poll; },
+        watch_hdlr => \&watch_hdlr,
+        _stop     => \&mystop, },
+
+);
 
 POE::Component::Server::TCP->new(
   Alias              => "mothership",
@@ -28,14 +35,25 @@ POE::Component::Server::TCP->new(
   ClientDisconnected => \&client_disconnected,
   ClientInput        => \&client_input,
 );
+
 $poe_kernel->run();
 exit 0;
 
 sub mystart {
-    my ($heap) = $_[HEAP];
-    $_[KERNEL]->alias_set("console");
+    my ($kernel, $heap) = @_[KERNEL, HEAP];
+    $kernel->alias_set("console");
     $heap->{readline_wheel} = POE::Wheel::ReadLine->new( InputEvent => 'got_input' );
     $heap->{readline_wheel}->get(":> ");
+
+    $_[HEAP]{inotify} = new Linux::Inotify2
+        or die "Unable to create new inotify object: $!";
+
+    $_[HEAP]{inotify}->watch($watchdir, IN_CLOSE_WRITE, $_[SESSION]->postback("watch_hdlr"))
+        or die "Unable to watch dir: $!";
+
+    my $inotify_FH;
+    open $inotify_FH, "< &=" . $_[HEAP]{inotify}->fileno or die "Can't fdopen: $!\n";
+    $_[KERNEL]->select_read( $inotify_FH, "inotify_poll" );
 }
 
 sub mystop {
@@ -137,3 +155,16 @@ sub client_input {
   $kernel->post( console => output_text => "<$c->{id}> $input" );
 }
 
+sub watch_hdlr {
+    my $event = $_[ARG1][0];
+
+    my $name = $event->fullname;
+
+    my $msg;
+    $msg .= "$name was accessed\n" if $event->IN_ACCESS;
+    $msg .= "$name is no longer mounted\n" if $event->IN_UNMOUNT;
+    $msg .= "$name is gone\n" if $event->IN_IGNORED;
+    $msg .= "$name is new\n" if $event->IN_CLOSE_WRITE;
+    $msg .= "events for $name have been lost\n" if $event->IN_Q_OVERFLOW;
+    $poe_kernel->post( console => output_text => $msg );
+}

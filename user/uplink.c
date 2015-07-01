@@ -48,6 +48,10 @@ void uplink_stop() {
   os_timer_disarm(&recon_timer);
 }
 
+int uplink_state() {
+    return uplink_conn.state;
+}
+
 void ICACHE_FLASH_ATTR
 do_alive(void *arg) {
   tcp_print(&uplink_conn, "alive\n");
@@ -94,7 +98,7 @@ mothership_resolved(const char *name, ip_addr_t *ipaddr, void *arg)
 
   uint32 nKeepaliveParam = 10;
   espconn_set_keepalive(pespconn, ESPCONN_KEEPIDLE, &nKeepaliveParam);
-  nKeepaliveParam = 2;
+  nKeepaliveParam = 5;
   espconn_set_keepalive(pespconn, ESPCONN_KEEPINTVL, &nKeepaliveParam);
   nKeepaliveParam = 10;
   espconn_set_keepalive(pespconn, ESPCONN_KEEPCNT, &nKeepaliveParam);

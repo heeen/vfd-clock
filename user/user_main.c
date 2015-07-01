@@ -154,7 +154,7 @@ displayTime() {
     }
 
     int slot = rboot_get_current_rom();
-    os_sprintf(temp, "%d", slot);
+    os_sprintf(temp, "ROM%d UP%d", slot, uplink_state());
     vfd_pos(0, 1);
     vfd_print(temp);
 

@@ -78,3 +78,6 @@ flash: $(RBOOT) $(FIRMW_DIR)/rom0.bin $(FIRMW_DIR)/rom1.bin
 
 cloud: $(FIRMW_DIR)/rom0.bin $(FIRMW_DIR)/rom1.bin
 	scp $(FIRMW_DIR)/rom0.bin $(FIRMW_DIR)/rom1.bin endboss.org:www/esp8266/
+
+localcloud: $(FIRMW_DIR)/rom0.bin $(FIRMW_DIR)/rom1.bin
+	cp $(FIRMW_DIR)/rom0.bin $(FIRMW_DIR)/rom1.bin /var/www/heeen.de/htdocs/esp8266/
