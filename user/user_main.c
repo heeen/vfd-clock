@@ -76,7 +76,14 @@ check_ap_joined(void *arg)
 {
   static uint32_t checkTime = 0;
   uint8_t status;
-  static uint8_t prev_status = STATION_IDLE;
+  static uint8_t prev_status = 128; //STATION_IDLE;
+
+    if(wifi_get_opmode() != STATION_MODE) {
+        print("switching to station mode\n");
+        ETS_UART_INTR_DISABLE();
+        wifi_set_opmode(STATION_MODE);
+        ETS_UART_INTR_ENABLE();
+    }
 
   checkTime++;
   status = wifi_station_get_connect_status();
@@ -85,6 +92,7 @@ check_ap_joined(void *arg)
       switch(status) {
         case STATION_IDLE:
           print("\fidle");
+          connect_known_ap();
           break;
         case STATION_CONNECTING:
           print("\fconnecting");
@@ -154,13 +162,13 @@ displayTime() {
     }
 
     int slot = rboot_get_current_rom();
-    os_sprintf(temp, "ROM%d UP%d", slot, uplink_state());
+    os_sprintf(temp, "R%d UP%d ", slot, uplink_state());
     vfd_pos(0, 1);
     vfd_print(temp);
 
     wifi_get_ip_info(0x00, &s_ip);
     os_sprintf(temp, "%d.%d.%d.%d", IP2STR(&s_ip.ip));
-    int p = 20 - os_strlen(temp) - 1;
+    int p = 20 - os_strlen(temp);
     vfd_pos(p,1);
     vfd_print(temp);
 }

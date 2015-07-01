@@ -74,7 +74,7 @@ rboot: $(RBOOT)
 esptool2: $(ESPTOOL2)
 
 flash: $(RBOOT) $(FIRMW_DIR)/rom0.bin $(FIRMW_DIR)/rom1.bin
-	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPBAUD) write_flash 0x00000 $(RBOOT) 0x02000 $(FIRMW_DIR)/rom0.bin 0x82000 $(FIRMW_DIR)/rom1.bin
+	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPBAUD) write_flash 0x00000 $(RBOOT) 0x02000 $(FIRMW_DIR)/rom0.bin
 
 cloud: $(FIRMW_DIR)/rom0.bin $(FIRMW_DIR)/rom1.bin
 	scp $(FIRMW_DIR)/rom0.bin $(FIRMW_DIR)/rom1.bin endboss.org:www/esp8266/

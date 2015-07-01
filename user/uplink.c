@@ -54,7 +54,10 @@ int uplink_state() {
 
 void ICACHE_FLASH_ATTR
 do_alive(void *arg) {
-  tcp_print(&uplink_conn, "alive\n");
+    char temp[32];
+    struct tm *dt = gmtime(&timestamp);
+    os_sprintf(temp, "alive %02d:%02d:%02d\n", dt->tm_hour, dt->tm_min, dt->tm_sec);
+    tcp_print(&uplink_conn, temp);
 }
 
 void ICACHE_FLASH_ATTR
@@ -109,7 +112,7 @@ mothership_resolved(const char *name, ip_addr_t *ipaddr, void *arg)
 }
 
 static void ICACHE_FLASH_ATTR uplink_sentCb(void *arg) {
-  print("sent\n");
+  os_printf("sent\n");
 }
 
 static void ICACHE_FLASH_ATTR tcp_print(struct espconn* con, char* str) {
@@ -167,7 +170,7 @@ static void ICACHE_FLASH_ATTR uplink_connectedCb(void *arg) {
   print("-- cend\n");
   os_timer_disarm(&alive_timer);
   os_timer_setfn(&alive_timer, (os_timer_func_t *) do_alive, NULL);
-  os_timer_arm(&alive_timer, 15000, 0);
+  os_timer_arm(&alive_timer, 15000, 1);
 }
 
 static void ICACHE_FLASH_ATTR uplink_reconCb(void *arg, sint8 err) {
@@ -229,19 +232,21 @@ static void ICACHE_FLASH_ATTR OtaUpdate_CallBack(void *arg, bool result) {
 
     if(result == true) {
         // success, reboot
-        os_sprintf(msg, "Firmware updated, rebooting to rom %d...\r\n", ota->rom_slot);
-        print(msg);
+        os_sprintf(msg, "Firmware updated, rebooting to rom %d...\n", ota->rom_slot);
+        tcp_print(&uplink_conn, msg);
         rboot_set_current_rom(ota->rom_slot);
         system_restart();
     } else {
         // fail, cleanup
-        print("Firmware update failed!\r\n");
+        tcp_print(&uplink_conn, "Firmware update failed!\n");
         os_free(ota->request);
         os_free(ota);
     }
 }
 
 void ICACHE_FLASH_ATTR uplink_ota() {
+  os_timer_disarm(&recon_timer);
+  os_timer_disarm(&alive_timer);
     uint8 slot;
     rboot_ota *ota;
 

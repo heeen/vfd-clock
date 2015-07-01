@@ -550,6 +550,7 @@ if __name__ == '__main__':
             filename = args.addr_filename[1]
             args.addr_filename = args.addr_filename[2:]
             image = file(filename, 'rb').read()
+            print '%s:\n%d bytes to 0x%08x' % (filename, len(image), address)
             print 'Erasing flash...'
             blocks = math.ceil(len(image)/float(esp.ESP_FLASH_BLOCK))
             esp.flash_begin(blocks*esp.ESP_FLASH_BLOCK, address)
