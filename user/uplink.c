@@ -141,7 +141,7 @@ static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned shor
       tcp_print(conn, "pong\n");
   } else if(strncmp(data, "time", 4) == 0) {
     struct tm *dt = gmtime(&timestamp);
-    os_sprintf(temp, "%02d:%02d:%02d", dt->tm_hour, dt->tm_min, dt->tm_sec);
+    os_sprintf(temp, "%02d:%02d:%02d\n", dt->tm_hour, dt->tm_min, dt->tm_sec);
     tcp_print(conn, temp);
   } else if(strncmp(data, "rssi", 4) == 0) {
     os_sprintf(temp, "RSSI=%d\n", wifi_station_get_rssi());
