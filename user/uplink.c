@@ -15,6 +15,7 @@
 #include "rboot.h"
 #include "rboot-ota.h"
 #include "ntp.h"
+#include "common.h"
 
 static struct espconn uplink_conn;
 static esp_tcp uplink_tcp_conn;
@@ -23,7 +24,6 @@ static void uplink_disconCb(void *arg);
 static void uplink_reconCb(void *arg, sint8 err);
 static void uplink_recvCb(void *arg, char *data, unsigned short len);
 static void uplink_sentCb(void *arg);
-const char* esp_errstr(sint8 err);
 static os_timer_t recon_timer;
 static os_timer_t alive_timer;
 
@@ -36,10 +36,8 @@ void uplink_ota();
 static void ICACHE_FLASH_ATTR tcp_print(struct espconn* con, char* str);
 
 void uplink_start() {
-  print("connecting to the mothership\n");
-  print("looking up <");
-  print(mothership_hostname);
-  print(">\n");
+  os_printf("connecting to the mothership\n");
+  os_printf("looking up <%s>\n", mothership_hostname);
   espconn_gethostbyname(&uplink_conn, mothership_hostname, &mothership_ip,
             mothership_resolved);
 }
@@ -73,7 +71,7 @@ void ICACHE_FLASH_ATTR
 mothership_resolved(const char *name, ip_addr_t *ipaddr, void *arg)
 {
   if(!ipaddr) {
-      print("could not resolve!\n");
+      os_printf("could not resolve!\n");
       uplink_start();
   }
   os_printf("resolved! %p\n", ipaddr);
@@ -188,9 +186,7 @@ static void ICACHE_FLASH_ATTR uplink_disconCb(void *arg) {
   os_timer_arm(&recon_timer, 1000, 0);
 }
 
-
-
-const char* esp_errstr(sint8 err) {
+const char* ICACHE_FLASH_ATTR esp_errstr(sint8 err) {
     switch(err) {
         case ESPCONN_OK:
             return "No error, everything OK.";
@@ -241,12 +237,14 @@ static void ICACHE_FLASH_ATTR OtaUpdate_CallBack(void *arg, bool result) {
         tcp_print(&uplink_conn, "Firmware update failed!\n");
         os_free(ota->request);
         os_free(ota);
+        enable_clock();
     }
 }
 
 void ICACHE_FLASH_ATTR uplink_ota() {
   os_timer_disarm(&recon_timer);
   os_timer_disarm(&alive_timer);
+  disable_clock();
     uint8 slot;
     rboot_ota *ota;
 
@@ -259,7 +257,6 @@ void ICACHE_FLASH_ATTR uplink_ota() {
 
     // select rom slot to flash
     slot = rboot_get_current_rom();
-    print("fooo\n");
         
     if (slot == 0)
         slot = 1;
@@ -272,12 +269,11 @@ void ICACHE_FLASH_ATTR uplink_ota() {
             http_header,
             (slot == 0 ? "rom0.bin" : "rom1.bin"),
             mothership_hostname);
-    print(ota->request);
     // start the upgrade process
     if (rboot_ota_start(ota)) {
-        print("Updating...\n");
+        //print("Updating...\n");
     } else {
-        print("Updating failed!\n");
+        //print("Updating failed!\n");
         os_free(ota->request);
         os_free(ota);
     }

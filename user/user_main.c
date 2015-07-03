@@ -44,6 +44,17 @@ print(const char *str) {
     }
 }
 
+void ICACHE_FLASH_ATTR disable_clock() {
+  os_timer_disarm(&wifi_check_timer);
+  vfd_clear();
+}
+
+void ICACHE_FLASH_ATTR enable_clock() {
+  os_timer_disarm(&wifi_check_timer);
+  os_timer_setfn(&wifi_check_timer, (os_timer_func_t *)check_ap_joined, NULL);
+  os_timer_arm(&wifi_check_timer, 1000, 1);
+}
+
 //Do nothing function
 static void ICACHE_FLASH_ATTR
 user_procTask(os_event_t *events) {
@@ -63,10 +74,7 @@ user_init() {
   wifi_get_macaddr(STATION_IF, macaddr);
   os_sprintf(temp, "<"MACSTR">", MAC2STR(macaddr));
   print(temp);
-  
-  os_timer_disarm(&wifi_check_timer);
-  os_timer_setfn(&wifi_check_timer, (os_timer_func_t *)check_ap_joined, NULL);
-  os_timer_arm(&wifi_check_timer, 1000, 1);
+  enable_clock();
 }
 
 
@@ -145,8 +153,13 @@ checkmDns() {
 void ICACHE_FLASH_ATTR
 displayTime() {
     struct tm *dt = gmtime(&timestamp);
-    char timestr[16];
-    os_sprintf(timestr, "%02d:%02d:%02d", dt->tm_hour, dt->tm_min, dt->tm_sec);
+    bool nightMode = false;
+    if(dt->tm_hour > 23 || dt->tm_hour < 7) nightMode = true;
+    char timestr[21];
+    if(nightMode)
+        os_sprintf(timestr, "%02d:%02d              ", dt->tm_hour, dt->tm_min, dt->tm_sec);
+    else
+        os_sprintf(timestr, "%02d:%02d:%02d           ", dt->tm_hour, dt->tm_min, dt->tm_sec);
     vfd_pos(0,0);
     vfd_print(timestr);
   
@@ -161,15 +174,15 @@ displayTime() {
       uart_tx_one_char(UART1, 128);
     }
 
-    int slot = rboot_get_current_rom();
-    os_sprintf(temp, "R%d UP%d ", slot, uplink_state());
-    vfd_pos(0, 1);
-    vfd_print(temp);
-
-    wifi_get_ip_info(0x00, &s_ip);
-    os_sprintf(temp, "%d.%d.%d.%d", IP2STR(&s_ip.ip));
-    int p = 20 - os_strlen(temp);
-    vfd_pos(p,1);
-    vfd_print(temp);
+/*    if(false && !nightMode) {
+        wifi_get_ip_info(0x00, &s_ip);
+        os_sprintf(temp, "%d.%d.%d.%d", IP2STR(&s_ip.ip));
+        int p = 20 - os_strlen(temp);
+        vfd_pos(p,1);
+        vfd_print(temp);
+    } else*/ {
+        vfd_pos(0,1);
+        vfd_print("                    ");
+    }
 }
 
