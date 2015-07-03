@@ -7,9 +7,12 @@ use Data::Dumper;
 use Linux::Inotify2;
 
 my %known = (
-    "18:fe:34:9c:8d:d0"=>"clock1"
+    "18:fe:34:9c:8d:d0"=>"clock2",
+    "18:fe:34:98:65:cc"=>"esp01-def",
+    "18:fe:34:99:ec:ed"=>"clock1"
 );
-
+my $selected;
+my %users;
 my $watchdir = "/var/www/heeen.de/htdocs/esp8266/";
 
 POE::Session->create(
@@ -20,10 +23,19 @@ POE::Session->create(
             my( $heap, $text ) = @_[HEAP,ARG0];
             $heap->{readline_wheel}->put($text);
         },
+        update_prompt => sub {
+            my( $heap) = @_[HEAP,ARG0];
+            if($selected) {
+                $heap->{readline_wheel}->get( "$users{$selected}->{id}> ");
+            } else {
+                $heap->{readline_wheel}->get( "* > ");
+            }
+        },
         inotify_poll => sub { $_[HEAP]{inotify}->poll; },
         watch_hdlr => \&watch_hdlr,
-        _stop     => \&mystop, },
-
+        _stop     => \&mystop,
+        trigger_ota => \&trigger_ota,
+    },
 );
 
 POE::Component::Server::TCP->new(
@@ -45,15 +57,15 @@ sub mystart {
     $heap->{readline_wheel} = POE::Wheel::ReadLine->new( InputEvent => 'got_input' );
     $heap->{readline_wheel}->get(":> ");
 
-    $_[HEAP]{inotify} = new Linux::Inotify2
+    $heap->{inotify} = new Linux::Inotify2
         or die "Unable to create new inotify object: $!";
 
-    $_[HEAP]{inotify}->watch($watchdir, IN_CLOSE_WRITE, $_[SESSION]->postback("watch_hdlr"))
+    $heap->{inotify}->watch($watchdir, IN_CLOSE_WRITE, $_[SESSION]->postback("watch_hdlr"))
         or die "Unable to watch dir: $!";
 
     my $inotify_FH;
     open $inotify_FH, "< &=" . $_[HEAP]{inotify}->fileno or die "Can't fdopen: $!\n";
-    $_[KERNEL]->select_read( $inotify_FH, "inotify_poll" );
+    $kernel->select_read( $inotify_FH, "inotify_poll" );
 }
 
 sub mystop {
@@ -68,10 +80,14 @@ sub got_input_handler {
         $heap->{readline_wheel}->addhistory($input);
         if($input eq "ls") {
             list_users();
-        }
-        else {
-            $heap->{readline_wheel}->put("sending <$input>");
-            broadcast($input);
+        } elsif($input =~ /^cd/) {
+            cmd_cd($input);
+        } else {
+            if($selected) {
+                $poe_kernel->post($selected => send => $input);
+            } else {
+                broadcast($input);
+            }
         }
     }
     elsif ( $exception eq 'interrupt' ) {
@@ -80,18 +96,13 @@ sub got_input_handler {
 # close sockets
         exit(0);
     }
-    else {
+    elsif($exception != 1) {
         $heap->{readline_wheel}->put("\tException: $exception");
     }
 
     $heap->{readline_wheel}->get();
 }
 
-
-# This is a plain Perl function (not a POE event handler) that
-# broadcasts a message to all the users in the chat room.  The %users
-# hash is used to track connected people.
-my %users;
 
 sub broadcast {
   my ($message) = @_;
@@ -103,10 +114,39 @@ sub broadcast {
 sub list_users {
   foreach my $session (keys %users) {
     my $c = $users{$session};
-    print "$session: ", $c->{id},": ",$c->{MAC}, " rom: ",$c->{ROM},"\n";
-    #$poe_kernel->post($user => send => $message);
+    myprint("$session: $c->{id}: $c->{MAC} rom: $c->{ROM} alive: $c->{alive}");
   }
 }
+
+sub cmd_cd {
+    my $input = shift;
+    if($input =~ /^cd *$/) {
+        myprint("selecting all.");
+        $selected = 0;
+    } elsif($input =~/^cd (\w+)$/) {
+        foreach my $session (keys %users) { #FIXME o(n)
+            my $c = $users{$session};
+            if($c->{id} eq $1 || $session == $1) {
+                $selected = $session;
+                myprint("selected: $c->{id}: $c->{MAC} rom: $c->{ROM} alive: $c->{alive}");
+                last;
+            }
+        }
+        $selected = 0;
+    } else {
+        myprint("cd: error in arguments.");
+    }
+    $poe_kernel->post( console => "update_prompt");
+}
+
+sub trigger_ota {
+  foreach my $session (keys %users) {
+    my $c = $users{$session};
+    $poe_kernel->post($session => send => "OTA");
+    myprint("sending OTA to $c->{id}");
+  }
+}
+
 
 sub myprint {
   $poe_kernel->post( console => output_text => join(" ", @_) );
@@ -114,8 +154,9 @@ sub myprint {
 
 # Handle an outgoing message by sending it to the client.
 sub handle_send {
-  my ($heap, $message) = @_[HEAP, ARG0];
-  print "\nsend:<$message>\n";
+  my ($heap, $session, $message) = @_[HEAP, SESSION, ARG0];
+  my $id = $users{$session->ID}->{id};
+  myprint(">> $id: <$message>");
   $heap->{client}->put($message);
 }
 
@@ -150,9 +191,23 @@ sub client_input {
   my $c = $users{$session->ID};
   if($input =~ /^(.+)=(.+)$/) {
       $c->{$1} = $2;
-      $c->{id} = $known{$c->{MAC}} if $1 eq "MAC";
+      if($1 eq "MAC") {
+        if($known{$c->{MAC}}) {
+            $c->{id} = $known{$c->{MAC}};
+        } else {
+         $c->{id} = substr $2,-8;
+         }
+      }
+
+      $c->{alive} = "?";
   }
-  $kernel->post( console => output_text => "<$c->{id}> $input" );
+
+  if($input =~ /^alive (.+)$/) {
+    $c->{alive} = $1;
+    $kernel->post( console => "update_prompt");
+  } else {
+      $kernel->post( console => output_text => "<$c->{id}> $input" );
+  }
 }
 
 sub watch_hdlr {
@@ -167,4 +222,7 @@ sub watch_hdlr {
     $msg .= "$name is new\n" if $event->IN_CLOSE_WRITE;
     $msg .= "events for $name have been lost\n" if $event->IN_Q_OVERFLOW;
     $poe_kernel->post( console => output_text => $msg );
+    if($event->IN_CLOSE_WRITE ) {
+        $poe_kernel->delay( trigger_ota => 1.0 );
+    }
 }
