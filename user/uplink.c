@@ -53,6 +53,7 @@ int uplink_state() {
 void ICACHE_FLASH_ATTR
 do_alive(void *arg) {
     char temp[32];
+    time_t timestamp = gettime();
     struct tm *dt = gmtime(&timestamp);
     os_sprintf(temp, "alive %02d:%02d:%02d\n", dt->tm_hour, dt->tm_min, dt->tm_sec);
     tcp_print(&uplink_conn, temp);
@@ -110,7 +111,6 @@ mothership_resolved(const char *name, ip_addr_t *ipaddr, void *arg)
 }
 
 static void ICACHE_FLASH_ATTR uplink_sentCb(void *arg) {
-  os_printf("sent\n");
 }
 
 static void ICACHE_FLASH_ATTR tcp_print(struct espconn* con, char* str) {
@@ -119,7 +119,6 @@ static void ICACHE_FLASH_ATTR tcp_print(struct espconn* con, char* str) {
 
 static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned short len) {
   char temp[32];
-  print("received:");
   struct espconn *conn = (struct espconn *) arg;
   uart0_tx_buffer(data,len);
   print("\n");
@@ -141,11 +140,15 @@ static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned shor
   } else if(strncmp(data, "ping", 4) == 0) {
       tcp_print(conn, "pong\n");
   } else if(strncmp(data, "time", 4) == 0) {
+    time_t timestamp = gettime();
     struct tm *dt = gmtime(&timestamp);
     os_sprintf(temp, "%02d:%02d:%02d\n", dt->tm_hour, dt->tm_min, dt->tm_sec);
     tcp_print(conn, temp);
   } else if(strncmp(data, "rssi", 4) == 0) {
     os_sprintf(temp, "RSSI=%d\n", wifi_station_get_rssi());
+    tcp_print(conn, temp);
+  } else if(strncmp(data, "vdd", 3) == 0) {
+    os_sprintf(temp, "VDD=%d\n", readvdd33());
     tcp_print(conn, temp);
   }
 }
@@ -165,7 +168,6 @@ static void ICACHE_FLASH_ATTR uplink_connectedCb(void *arg) {
   d = espconn_sent(conn, temp, strlen(temp));
   os_sprintf(temp, "HELLO.\n");
   d = espconn_sent(conn, temp, strlen(temp));
-  print("-- cend\n");
   os_timer_disarm(&alive_timer);
   os_timer_setfn(&alive_timer, (os_timer_func_t *) do_alive, NULL);
   os_timer_arm(&alive_timer, 15000, 1);
@@ -180,7 +182,7 @@ static void ICACHE_FLASH_ATTR uplink_reconCb(void *arg, sint8 err) {
 }
 
 static void ICACHE_FLASH_ATTR uplink_disconCb(void *arg) {
-  print("dcon\n");
+  print("uplink disconnected\n");
   os_timer_disarm(&recon_timer);
   os_timer_disarm(&alive_timer);
   os_timer_arm(&recon_timer, 1000, 0);

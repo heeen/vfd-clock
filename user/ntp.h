@@ -25,8 +25,7 @@ typedef struct {
 } ntp_t;
 
 void ICACHE_FLASH_ATTR ntp_get_time();
-
-extern time_t timestamp;
+time_t gettime();
 extern time_t last_ntp_update;
 
 #endif

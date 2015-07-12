@@ -14,6 +14,8 @@
 
 #include "vfd.h"
 #include "uplink.h"
+#include "display.h"
+
 #include "rboot.h"
 
 #define user_procTaskPrio        0
@@ -46,10 +48,12 @@ print(const char *str) {
 
 void ICACHE_FLASH_ATTR disable_clock() {
   os_timer_disarm(&wifi_check_timer);
+  stop_display();
   vfd_clear();
 }
 
 void ICACHE_FLASH_ATTR enable_clock() {
+  start_display();
   os_timer_disarm(&wifi_check_timer);
   os_timer_setfn(&wifi_check_timer, (os_timer_func_t *)check_ap_joined, NULL);
   os_timer_arm(&wifi_check_timer, 1000, 1);
@@ -116,7 +120,7 @@ check_ap_joined(void *arg)
           print("\fconnect failed");
           break;
         case STATION_GOT_IP:
-          print("\fconnected!");
+          showstatus("connected!", 10);
           //checkmDns();
           vfd_clear();
           ntp_get_time();
@@ -127,9 +131,6 @@ check_ap_joined(void *arg)
           os_timer_arm(&display_time_timer, 1000, 1);*/
           break;
       }
-  }
-  if(timestamp) {
-    displayTime();
   }
 }
 
@@ -147,42 +148,5 @@ checkmDns() {
     //espconn_mdns_server_register();
     espconn_mdns_enable();
   }
-}
-
-
-void ICACHE_FLASH_ATTR
-displayTime() {
-    struct tm *dt = gmtime(&timestamp);
-    bool nightMode = false;
-    if(dt->tm_hour > 23 || dt->tm_hour < 7) nightMode = true;
-    char timestr[21];
-    if(nightMode)
-        os_sprintf(timestr, "%02d:%02d              ", dt->tm_hour, dt->tm_min, dt->tm_sec);
-    else
-        os_sprintf(timestr, "%02d:%02d:%02d           ", dt->tm_hour, dt->tm_min, dt->tm_sec);
-    vfd_pos(0,0);
-    vfd_print(timestr);
-  
-
-    if(timestamp - last_ntp_update > 30*60) {
-      ntp_get_time();
-      vfd_pos(19, 0);
-      vfd_print("?");
-    } else {
-      vfd_bars_char(128, wifi_station_get_rssi());
-      vfd_pos(19, 0);
-      uart_tx_one_char(UART1, 128);
-    }
-
-/*    if(false && !nightMode) {
-        wifi_get_ip_info(0x00, &s_ip);
-        os_sprintf(temp, "%d.%d.%d.%d", IP2STR(&s_ip.ip));
-        int p = 20 - os_strlen(temp);
-        vfd_pos(p,1);
-        vfd_print(temp);
-    } else*/ {
-        vfd_pos(0,1);
-        vfd_print("                    ");
-    }
 }
 

@@ -14,7 +14,7 @@
 // list of major public servers http://tf.nist.gov/tf-cgi/servers.cgi
 uint8 ntp_server[] = {131, 107, 13, 100}; // microsoft
 
-time_t timestamp = 0;
+static time_t timestamp = 0;
 time_t last_ntp_update = 1432390000;
 
 static os_timer_t ntp_timeout;
@@ -32,6 +32,10 @@ static void ICACHE_FLASH_ATTR ntp_udp_timeout(void *arg) {
 		os_free(pCon);
 		pCon = 0;
 	}
+}
+
+time_t ICACHE_FLASH_ATTR gettime() {
+    return timestamp;
 }
 
 static void ICACHE_FLASH_ATTR tictoc(void *arg) {

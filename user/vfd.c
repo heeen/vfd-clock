@@ -1,6 +1,8 @@
 #include "driver/uart.h"
 #include "vfd.h"
 
+#include <c_types.h>
+
 /*
  * The command clears display and memory.
  * The cursor shifts to the left end of the upper row.
