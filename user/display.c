@@ -16,33 +16,54 @@ static status_line* current = 0;
 static os_timer_t display_update_timer;
 static int scrollpos = -20;
 void update_display(void *arg);
+void dumpstatus();
 
 void showstatus(const char* text, unsigned short duration) {
     status_line* s = create_status(text);
     s->next = head;
+    s->until = gettime() + duration;
     head = s;
+    dumpstatus();
+}
+
+void dumpstatus() {
+    os_printf("HEAD: %p  cur:%p\n", head, current);
+    status_line* s = head;
+    int i = 0;
+    while(s) {
+        os_printf("%d: %p %s\n", i++, s, s->text);
+        s = s->next;
+    }
+    os_printf("END\n");
 }
 
 status_line* create_status(const char* text){
     status_line* s = (status_line*) os_zalloc(sizeof(status_line));
     os_memset(s, 0, sizeof(status_line));
-    s->text = (char*) os_zalloc(os_strlen(text));
+    int len = os_strlen(text);
+    s->text = (char*) os_zalloc(len);
+    s->len = len;
     os_strcpy(s->text, text);
+    os_printf("create status: %p %s\n", s, s->text);
     return s;
 }
 
 void destroy_status(status_line* s) {
+    os_printf("destroy status: %p %s\n", s, s->text);
     status_line* i = head;
     if(s == head) {
+        os_printf("destroy head.\n");
         head = 0;
-    } else if(s->next) {
+    } else {
         // find previous
         while(i && i->next != s) i = i->next;
+        os_printf("prev is %p\n", i);
         i->next = s->next;
     }
 
     os_free(s->text);
     os_free(s);
+    dumpstatus();
 }
 
 
@@ -89,15 +110,24 @@ update_display(void *arg)
 
     vfd_pos(0,1);
     if(current) {
-        scrollpos ++;
-        if(scrollpos > current->len) scrollpos = -20;
         int x = 0;
         for(x = 0; x < 20; x++) {
             int i = x + scrollpos;
-            if(i < 0 || i > current->len)
+            if(i < 0 || i >= current->len)
                 uart_tx_one_char(UART1, ' ');
             else
                 uart_tx_one_char(UART1, current->text[i]);
+        }
+        scrollpos ++;
+        if(scrollpos > current->len) {
+            dumpstatus();
+            scrollpos = -20;
+            status_line* c = current;
+            current = current->next;
+            if(c->until < timestamp) {
+                destroy_status(c);
+            }
+            dumpstatus();
         }
     } else {
       vfd_print("----");
