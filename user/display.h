@@ -13,6 +13,6 @@ typedef struct status_line {
 
 void start_display();
 void stop_display();
-void showstatus(const char* text, unsigned short duration);
+void statusline(const char* text, unsigned short duration);
 
 #endif /* DISPLAY_H */

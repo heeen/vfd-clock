@@ -28,6 +28,7 @@ struct ip_info s_ip;
 char temp[128];
 os_timer_t wifi_check_timer;
 os_timer_t display_time_timer;
+int rssi;
 
 void joinAP();
 void checkmDns();
@@ -110,27 +111,27 @@ check_ap_joined(void *arg)
           print("\fconnecting");
           break;
         case STATION_WRONG_PASSWORD:
-          print("\fwrong password");
+          statusline("WIFI: wrong password", 1);
           break;
         case STATION_NO_AP_FOUND:
-          print("\fno ap found");
+          statusline("WIFI: no known ap found", 1);
           connect_known_ap();
           break;
         case STATION_CONNECT_FAIL:
-          print("\fconnect failed");
+          statusline("WIFI connect failed", 1);
           break;
         case STATION_GOT_IP:
-          showstatus("connected!", 10);
+          statusline("WIFI connected", 1);
           //checkmDns();
           vfd_clear();
           ntp_get_time();
           uplink_start();
-
-/*          os_timer_disarm(&display_time_timer);
-          os_timer_setfn(&display_time_timer, (os_timer_func_t *)displayTime, NULL);
-          os_timer_arm(&display_time_timer, 1000, 1);*/
           break;
       }
+  }
+
+  if(status == STATION_GOT_IP) {
+      rssi = wifi_station_get_rssi();
   }
 }
 
