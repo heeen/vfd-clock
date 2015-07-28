@@ -14,5 +14,6 @@ typedef struct status_line {
 void start_display();
 void stop_display();
 void statusline(const char* text, unsigned short duration);
+void display_small_update();
 
 #endif /* DISPLAY_H */

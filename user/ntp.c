@@ -47,7 +47,6 @@ static void ICACHE_FLASH_ATTR ntp_udp_recv(void *arg, char *pdata, unsigned shor
 	ntp_t *ntp;
 
 	os_timer_disarm(&ntp_timeout);
-	os_timer_disarm(&tic);
 
 	// extract ntp time
 	ntp = (ntp_t*)pdata;
@@ -67,7 +66,6 @@ static void ICACHE_FLASH_ATTR ntp_udp_recv(void *arg, char *pdata, unsigned shor
 		os_free(pCon);
 		pCon = 0;
 	}
-	os_timer_arm(&tic, 1000, 1);
 }
 
 
@@ -101,4 +99,5 @@ void ICACHE_FLASH_ATTR ntp_get_time() {
 
     os_timer_disarm(&tic);
 	os_timer_setfn(&tic, (os_timer_func_t*)tictoc, pCon);
+	os_timer_arm(&tic, 1000, 1);
 }

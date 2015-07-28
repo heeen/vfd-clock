@@ -16,6 +16,7 @@
 #include "rboot-ota.h"
 #include "ntp.h"
 #include "common.h"
+#include "display.h"
 
 static struct espconn uplink_conn;
 static esp_tcp uplink_tcp_conn;
@@ -36,7 +37,7 @@ void uplink_ota();
 static void ICACHE_FLASH_ATTR tcp_print(struct espconn* con, char* str);
 
 void uplink_start() {
-  os_printf("connecting to the mothership\n");
+  statusline("connecting to the mothership",1);
   os_printf("looking up <%s>\n", mothership_hostname);
   espconn_gethostbyname(&uplink_conn, mothership_hostname, &mothership_ip,
             mothership_resolved);
@@ -106,7 +107,7 @@ mothership_resolved(const char *name, ip_addr_t *ipaddr, void *arg)
   espconn_set_keepalive(pespconn, ESPCONN_KEEPCNT, &nKeepaliveParam);
   espconn_set_opt(pespconn,ESPCONN_KEEPALIVE);
 
-  print("connecting!\n");
+  statusline("connection...",1);
   espconn_connect(&uplink_conn);
 }
 
@@ -118,23 +119,23 @@ static void ICACHE_FLASH_ATTR tcp_print(struct espconn* con, char* str) {
 }
 
 static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned short len) {
-  char temp[32];
+  print("recv\n");
+  char temp[128];
   struct espconn *conn = (struct espconn *) arg;
   uart0_tx_buffer(data,len);
   print("\n");
+
   if(strncmp(data, "OTA", 3) == 0) {
-      print("got OTA request\n");
+      statusline("got OTA request",0);
       uplink_ota();
   } else if(strncmp(data, "ROM0", 4) == 0) {
-      print("load rom0 request\n");
       rboot_set_current_rom(0);
-      print("Restarting into rom 0...\n");
+      statusline("boot rom 0...",1);
       tcp_print(conn, "Restarting into rom 0...\n");
       system_restart();
   } else if(strncmp(data, "ROM1", 4) == 0) {
-      print("load rom1 request\n");
       rboot_set_current_rom(1);
-      print("Restarting into rom 1...\n");
+      statusline("boot rom 1...",1);
       tcp_print(conn, "Restarting into rom 1...\n");
       system_restart();
   } else if(strncmp(data, "ping", 4) == 0) {
@@ -150,13 +151,45 @@ static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned shor
   } else if(strncmp(data, "vdd", 3) == 0) {
     os_sprintf(temp, "VDD=%d\n", readvdd33());
     tcp_print(conn, temp);
+  } else if(strncmp(data, "status", 6) == 0) {
+    int duration;
+    char* s=data+6;
+    int dst=0;
+    while(*s == ' ' && s-data<len) s++;
+    if(*s != '"') {
+        tcp_print(conn, "error: expected quoted string.");
+        return;
+    }
+    s++; // skip "
+    while(dst < 128 && *s !='"' && *s != 0 && dst < len) {
+        temp[dst] = *s;
+        dst++; s++;
+    }
+    temp[dst] = 0;
+    os_printf("got %d chars: <%s>\n", dst, temp);
+    if(*s != '"') {
+        tcp_print(conn, "error: runaway quoted string.\n");
+        return;
+    }
+    s++; // skip "
+    while(*s == ' ' && s-data<len) s++;
+    if(s - data == len) {
+        tcp_print(conn, "using duration 5s.\n");
+        duration = 5;
+    } else {
+        duration = atoi(s);
+        os_printf("got duration %d>\n", duration);
+    }
+
+    statusline(temp, duration);
+
   }
 }
 
 static void ICACHE_FLASH_ATTR uplink_connectedCb(void *arg) {
-  char temp[128];
+  char temp[64];
   sint8 d;
-  print("uplink connected\n");
+  statusline("connected to mothership.",1);
   struct espconn *conn=(struct espconn *)arg;
   char macaddr[6];
   wifi_get_macaddr(STATION_IF, macaddr);
@@ -182,7 +215,7 @@ static void ICACHE_FLASH_ATTR uplink_reconCb(void *arg, sint8 err) {
 }
 
 static void ICACHE_FLASH_ATTR uplink_disconCb(void *arg) {
-  print("uplink disconnected\n");
+  statusline("mothership disconnected",1);
   os_timer_disarm(&recon_timer);
   os_timer_disarm(&alive_timer);
   os_timer_arm(&recon_timer, 1000, 0);

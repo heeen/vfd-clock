@@ -63,7 +63,8 @@ void ICACHE_FLASH_ATTR enable_clock() {
 //Do nothing function
 static void ICACHE_FLASH_ATTR
 user_procTask(os_event_t *events) {
-    os_delay_us(10);
+
+    display_small_update();
 }
 
 void ICACHE_FLASH_ATTR
@@ -92,7 +93,7 @@ check_ap_joined(void *arg)
   static uint8_t prev_status = 128; //STATION_IDLE;
 
     if(wifi_get_opmode() != STATION_MODE) {
-        print("switching to station mode\n");
+        statusline("switching to station mode",1);
         ETS_UART_INTR_DISABLE();
         wifi_set_opmode(STATION_MODE);
         ETS_UART_INTR_ENABLE();
