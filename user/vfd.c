@@ -168,3 +168,10 @@ void vfd_print(const char* str) {
         str++;
     }
 }
+
+void vfd_softclear() {
+    vfd_pos(0, 0);
+    int i;
+    for(i=0;i<40;i++)
+        uart_tx_one_char(UART1, ' ');
+}

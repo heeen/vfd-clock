@@ -30,7 +30,7 @@ void statusline(const char* text, unsigned short duration) {
     status_line* s = create_status(text);
     s->until = gettime() + duration;
     append(s);
-    dumpstatus();
+//    dumpstatus();
 }
 
 void append(status_line* s) {
@@ -88,7 +88,7 @@ void destroy_status(status_line* s) {
 
     os_free(s->text);
     os_free(s);
-    dumpstatus();
+//    dumpstatus();
 }
 
 
@@ -96,7 +96,7 @@ void start_display() {
   disabled = false;
   os_timer_disarm(&display_update_timer);
   os_timer_setfn(&display_update_timer, (os_timer_func_t *)update_display, NULL);
-  os_timer_arm(&display_update_timer, 250, 0);
+  os_timer_arm(&display_update_timer, 200, 0);
   statusline("display enabled", 1);
 }
 
@@ -117,7 +117,7 @@ update_display_time(time_t t) {
     if(nightMode && dt->tm_sec) return;
 
     if(nightMode)
-        os_sprintf(temp, "%02d:%02d", dt->tm_hour, dt->tm_min);
+        os_sprintf(temp, "%02d:%02d   ", dt->tm_hour, dt->tm_min);
     else
         os_sprintf(temp, "%02d:%02d:%02d", dt->tm_hour, dt->tm_min, dt->tm_sec);
 
@@ -140,17 +140,15 @@ update_display_statusline(time_t timestamp) {
         int x = 0;
         for(x = 0; x < 20; x++) {
             int i = x + scrollpos;
-            if(i == -2 || i == current->len + 1)
-                uart_tx_one_char(UART1, '*');
-            else if(i < 0 || i >= current->len)
+            if(i < 0 || i >= current->len)
                 uart_tx_one_char(UART1, ' ');
             else
                 uart_tx_one_char(UART1, current->text[i]);
         }
         scrollpos ++;
-        if((current->len <= 20 && scrollpos > 3)
-          || (current->len > 20 && scrollpos > current->len - 20 + 3)) {
-            scrollpos = -3;
+        if((current->len <= 20 && scrollpos)
+          || (current->len > 20 && scrollpos > current->len - 20)) {
+            scrollpos = 0;
             status_line* c = current;
             current = current->next;
             statusline_dirty = true;

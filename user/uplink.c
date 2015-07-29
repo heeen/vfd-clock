@@ -20,6 +20,7 @@
 
 static struct espconn uplink_conn;
 static esp_tcp uplink_tcp_conn;
+char temp[128];
 static void uplink_connectedCb(void *arg);
 static void uplink_disconCb(void *arg);
 static void uplink_reconCb(void *arg, sint8 err);
@@ -35,6 +36,8 @@ void ICACHE_FLASH_ATTR mothership_resolved(const char *name, ip_addr_t *ipaddr, 
 void uplink_init();
 void uplink_ota();
 static void ICACHE_FLASH_ATTR tcp_print(struct espconn* con, char* str);
+static void ICACHE_FLASH_ATTR parse_status(struct espconn* conn, char* data, size_t len);
+static void ICACHE_FLASH_ATTR do_scan(struct espconn* conn);
 
 void uplink_start() {
   statusline("connecting to the mothership",1);
@@ -53,7 +56,6 @@ int uplink_state() {
 
 void ICACHE_FLASH_ATTR
 do_alive(void *arg) {
-    char temp[32];
     time_t timestamp = gettime();
     struct tm *dt = gmtime(&timestamp);
     os_sprintf(temp, "alive %02d:%02d:%02d\n", dt->tm_hour, dt->tm_min, dt->tm_sec);
@@ -73,7 +75,7 @@ void ICACHE_FLASH_ATTR
 mothership_resolved(const char *name, ip_addr_t *ipaddr, void *arg)
 {
   if(!ipaddr) {
-      os_printf("could not resolve!\n");
+      statusline("could not resolve mothership!", 5);
       uplink_start();
   }
   os_printf("resolved! %p\n", ipaddr);
@@ -107,7 +109,6 @@ mothership_resolved(const char *name, ip_addr_t *ipaddr, void *arg)
   espconn_set_keepalive(pespconn, ESPCONN_KEEPCNT, &nKeepaliveParam);
   espconn_set_opt(pespconn,ESPCONN_KEEPALIVE);
 
-  statusline("connection...",1);
   espconn_connect(&uplink_conn);
 }
 
@@ -119,8 +120,6 @@ static void ICACHE_FLASH_ATTR tcp_print(struct espconn* con, char* str) {
 }
 
 static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned short len) {
-  print("recv\n");
-  char temp[128];
   struct espconn *conn = (struct espconn *) arg;
   uart0_tx_buffer(data,len);
   print("\n");
@@ -143,7 +142,7 @@ static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned shor
   } else if(strncmp(data, "time", 4) == 0) {
     time_t timestamp = gettime();
     struct tm *dt = gmtime(&timestamp);
-    os_sprintf(temp, "%02d:%02d:%02d\n", dt->tm_hour, dt->tm_min, dt->tm_sec);
+    os_sprintf(temp, "%d %02d:%02d:%02d\n", timestamp, dt->tm_hour, dt->tm_min, dt->tm_sec);
     tcp_print(conn, temp);
   } else if(strncmp(data, "rssi", 4) == 0) {
     os_sprintf(temp, "RSSI=%d\n", wifi_station_get_rssi());
@@ -152,12 +151,19 @@ static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned shor
     os_sprintf(temp, "VDD=%d\n", readvdd33());
     tcp_print(conn, temp);
   } else if(strncmp(data, "status", 6) == 0) {
+      parse_status(conn, data, len);
+  } else if(strncmp(data, "scan", 4) == 0) {
+      do_scan(conn);
+  }
+}
+
+static void ICACHE_FLASH_ATTR parse_status(struct espconn* conn, char* data, size_t len) {
     int duration;
     char* s=data+6;
     int dst=0;
     while(*s == ' ' && s-data<len) s++;
     if(*s != '"') {
-        tcp_print(conn, "error: expected quoted string.");
+        tcp_print(conn, "error: expected quoted string.\n");
         return;
     }
     s++; // skip "
@@ -183,11 +189,9 @@ static void ICACHE_FLASH_ATTR uplink_recvCb(void *arg, char *data, unsigned shor
 
     statusline(temp, duration);
 
-  }
 }
 
 static void ICACHE_FLASH_ATTR uplink_connectedCb(void *arg) {
-  char temp[64];
   sint8 d;
   statusline("connected to mothership.",1);
   struct espconn *conn=(struct espconn *)arg;
@@ -265,11 +269,13 @@ static void ICACHE_FLASH_ATTR OtaUpdate_CallBack(void *arg, bool result) {
         // success, reboot
         os_sprintf(msg, "Firmware updated, rebooting to rom %d...\n", ota->rom_slot);
         tcp_print(&uplink_conn, msg);
+        statusline(msg, 1);
         rboot_set_current_rom(ota->rom_slot);
         system_restart();
     } else {
         // fail, cleanup
         tcp_print(&uplink_conn, "Firmware update failed!\n");
+        statusline("Firmware update failed!\n", 5);
         os_free(ota->request);
         os_free(ota);
         enable_clock();
@@ -292,7 +298,7 @@ void ICACHE_FLASH_ATTR uplink_ota() {
 
     // select rom slot to flash
     slot = rboot_get_current_rom();
-        
+
     if (slot == 0)
         slot = 1;
     else
@@ -312,4 +318,50 @@ void ICACHE_FLASH_ATTR uplink_ota() {
         os_free(ota->request);
         os_free(ota);
     }
+}
+
+static void  ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status);
+
+static void ICACHE_FLASH_ATTR do_scan(struct espconn* conn) {
+    tcp_print(conn, "starting WIFI scan\n");
+    if(!wifi_station_scan(NULL, scan_done)) {
+        tcp_print(conn, "WIFI scan failed!\n");
+    }
+}
+static const char* const  ICACHE_FLASH_ATTR authmode2str(int mode) {
+    switch(mode) {
+        case AUTH_OPEN: return "open";
+        case AUTH_WEP: return "WEP";
+        case AUTH_WPA_PSK: return "WPA_PSK";
+        case AUTH_WPA2_PSK: return "WPA2_PSK";
+        case AUTH_WPA_WPA2_PSK: return "WPA_WPA2_PSK";
+    }
+    return "unkown";
+}
+
+static void  ICACHE_FLASH_ATTR
+scan_done(void *arg, STATUS status)
+{
+  struct bss_info *bss_link = (struct bss_info *)arg;
+
+  struct espconn* conn = &uplink_conn; //FIXME
+  if (status != OK) {
+    tcp_print(conn, "wifi scan errorn");
+    return;
+  }
+
+  bss_link = bss_link->next.stqe_next; // ignore first
+
+  int i=0;
+  while (bss_link != NULL) {
+    os_sprintf(temp, "%d: ssid=\"%s\" bssid="MACSTR" rssi=%d chan=%d auth=%s hidden=%d\n",
+            i, bss_link->ssid, MAC2STR(bss_link->bssid),
+            bss_link->rssi, bss_link->channel,
+            authmode2str(bss_link->authmode), bss_link->is_hidden);
+    tcp_print(conn, temp);
+    bss_link = bss_link->next.stqe_next;
+    i++;
+  }
+
+  tcp_print(conn, "-- end of wifi scan.\n");
 }

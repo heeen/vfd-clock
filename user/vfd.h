@@ -17,4 +17,5 @@ void vfd_custom_char(uint8_t code,
         uint8_t row6,
         uint8_t row7);
 void vfd_bars_char(uint8_t code, int dbm);
+void vfd_softclear();
 #endif /* VFD_H */
